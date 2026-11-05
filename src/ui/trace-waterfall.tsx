@@ -35,7 +35,7 @@ export type TraceWaterfallProps = {
 
 const PHASE_FILL: Record<TracePhase, string> = {
   ok: "bg-success-foreground",
-  awaiting: "bg-warning-foreground",
+  awaiting: "bg-warn",
   failed: "bg-destructive",
 };
 
@@ -128,7 +128,7 @@ export function TraceWaterfall({
                 </div>
               </div>
               {span.error === undefined ? null : (
-                <p className="ml-[11.5rem] border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive-foreground">
+                <p className="ml-[11.5rem] border border-destructive/40 bg-destructive/5 px-2 py-1 text-[11px] text-destructive">
                   {span.error}
                 </p>
               )}

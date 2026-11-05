@@ -101,6 +101,19 @@ const ratio = (a, b) => {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 };
 
+/** `fill` at `alpha` over an opaque `surface`, as the browser composites it. */
+const tint = (fill, surface, alpha) =>
+  `#${[1, 3, 5]
+    .map((i) => {
+      const [f, s] = [fill, surface].map((hex) =>
+        parseInt(hex.slice(i, i + 2), 16),
+      );
+      return Math.round(f * alpha + s * (1 - alpha))
+        .toString(16)
+        .padStart(2, "0");
+    })
+    .join("")}`;
+
 const css = readFileSync(STYLESHEET, "utf8");
 const light = tokensIn(css, ":root");
 // `.dark` only overrides; anything it does not restate is inherited from :root.
@@ -196,6 +209,20 @@ function checksFor(tokens) {
     }
   }
 
+  // 3c. A failed TraceWaterfall span prints its error as `destructive` text on
+  //     a 5% `destructive` tint. The tint is not a token, so it is composited
+  //     here over each surface the chart can land on.
+  for (const surface of ["background", "card"]) {
+    if (has("destructive") && has(surface)) {
+      checks.push([
+        `destructive on its 5% tint over ${surface}`,
+        tokens["destructive"],
+        tint(tokens["destructive"], tokens[surface], 0.05),
+        AA_TEXT,
+      ]);
+    }
+  }
+
   // 4. Control boundaries and the focus ring must clear the UI-component threshold.
   for (const line of ["input", "ring"]) {
     for (const surface of ["background", "card"]) {
@@ -222,6 +249,12 @@ function checksFor(tokens) {
         AA_UI,
       ]);
     }
+  }
+
+  // 4c. An awaiting TraceWaterfall bar is a `warn` fill on the `muted` track —
+  //     a mark, so the 3:1 UI threshold.
+  if (has("warn") && has("muted")) {
+    checks.push(["warn against muted", tokens["warn"], tokens["muted"], AA_UI]);
   }
 
   // 5. Chart series marks are UI, not text: a bar or a 2px line has to be

@@ -1,8 +1,27 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { TraceWaterfall, type TraceSpan } from "./trace-waterfall.js";
+
+const themeColors = new Set(
+  Array.from(
+    readFileSync(join(import.meta.dir, "../theme.css"), "utf-8").matchAll(
+      /--color-([a-z0-9-]+):/g,
+    ),
+    (match) => match[1],
+  ),
+);
+
+/** Theme colour names behind an element's `bg-*`/`text-*`/`border-*` classes. */
+function colorTokens(element: Element): string[] {
+  return Array.from(element.classList).flatMap((name) => {
+    const match = /^(?:bg|text|border)-([a-z][a-z-]*)(?:\/\d+)?$/.exec(name);
+    return match?.[1] === undefined ? [] : [match[1]];
+  });
+}
 
 function mount(spans: TraceSpan[]) {
   const container = document.createElement("div");
@@ -121,6 +140,45 @@ describe("TraceWaterfall", () => {
       (cell) => cell.textContent,
     );
     expect(tableCells).toContain("1.2s");
+    unmount();
+  });
+
+  test("awaiting and failed spans colour their bar and error with theme tokens", () => {
+    const { container, unmount } = mount([
+      {
+        id: "approval",
+        label: "Approval",
+        kind: "gate",
+        start: 0.1,
+        end: 0.6,
+        durationLabel: "4.0s",
+        phase: "awaiting",
+      },
+      {
+        id: "fetch",
+        label: "fetch_page",
+        kind: "tool",
+        start: 0.6,
+        end: 0.8,
+        durationLabel: "0.9s",
+        phase: "failed",
+        error: "Request timed out",
+      },
+    ]);
+    const bars = Array.from(container.querySelectorAll(".absolute.inset-y-0"));
+    expect(bars.map(colorTokens)).toEqual([["warn"], ["destructive"]]);
+
+    const error = Array.from(container.querySelectorAll("p")).find(
+      (p) => p.textContent === "Request timed out",
+    );
+    expect(error).toBeDefined();
+    const errorColors = colorTokens(error as Element);
+    expect(errorColors).toContain("destructive");
+    expect(errorColors).not.toContain("destructive-foreground");
+
+    for (const color of [...bars.flatMap(colorTokens), ...errorColors]) {
+      expect(themeColors).toContain(color);
+    }
     unmount();
   });
 });
